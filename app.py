@@ -78,6 +78,8 @@ else:
         
         if st.button("🔮 NHẬN DIỆN"):
             with st.spinner("Đang phân tích..."):
+                # SỬA LỖI: Chuyển ảnh sang RGB (3 kênh)
+                img = img.convert('RGB')
                 img = img.resize((input_size, input_size))
                 img_array = np.array(img, dtype=np.float32) / 255.0
                 img_array = np.expand_dims(img_array, axis=0)
