@@ -147,6 +147,12 @@ if session is None:
     st.error("> model.onnx not found")
     st.stop()
 
+# ========== LẤY INPUT SHAPE TỪ MODEL - QUAN TRỌNG ==========
+input_info = session.get_inputs()[0]
+input_shape = input_info.shape
+target_size = (input_shape[1], input_shape[2])
+# ============================================================
+
 # App introduction
 st.markdown("""
 > nhan dien 30 mon an truyen thong Viet Nam
@@ -210,7 +216,7 @@ with col_left:
         if image.mode == 'RGBA':
             image = image.convert('RGB')
         
-        target_size = (input_shape[1], input_shape[2])
+        # Dùng target_size đã lấy từ model
         image = image.resize(target_size)
         
         img_array = np.array(image).astype(np.float32) / 255.0
