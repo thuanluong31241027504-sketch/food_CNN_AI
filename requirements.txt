@@ -1,8 +1,4 @@
 streamlit
-torch
-torchvision
 numpy
-pandas
-matplotlib
-seaborn
 pillow
+onnxruntime
