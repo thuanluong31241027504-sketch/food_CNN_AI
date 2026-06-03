@@ -13,22 +13,18 @@ st.set_page_config(
 # Custom CSS
 st.markdown("""
 <style>
-    /* Remove default Streamlit styling */
     #MainMenu {visibility: hidden;}
     header {visibility: hidden;}
     footer {visibility: hidden;}
     
-    /* White background */
     .stApp {
         background-color: #ffffff;
     }
     
-    /* Terminal font */
     html, body, [class*="css"] {
         font-family: 'Courier New', 'SF Mono', monospace;
     }
     
-    /* Blinking cursor */
     @keyframes blink {
         0%, 50% { opacity: 1; }
         51%, 100% { opacity: 0; }
@@ -61,36 +57,36 @@ st.markdown("""
         font-family: 'Courier New', monospace;
     }
     
-    /* File uploader */
     .stFileUploader > div {
         background-color: #f5f5f5;
         border: 1px solid #000000;
         border-radius: 0px;
     }
     
-    /* Button - FIXED */
+    /* Button - white background, black text, black border */
     .stButton > button {
-        background-color: #000000 !important;
-        color: #ffffff !important;
-        border: none !important;
+        background-color: #ffffff !important;
+        color: #000000 !important;
+        border: 2px solid #000000 !important;
         border-radius: 0px !important;
         padding: 0.5rem 1rem !important;
         font-family: 'Courier New', monospace !important;
-        font-weight: normal !important;
+        font-weight: bold !important;
         width: 100% !important;
+        box-shadow: none !important;
     }
     
     .stButton > button:hover {
-        background-color: #333333 !important;
+        background-color: #000000 !important;
         color: #ffffff !important;
+        border: 2px solid #000000 !important;
+        cursor: pointer !important;
     }
     
-    /* Progress bar */
     .stProgress > div > div > div {
         background-color: #000000;
     }
     
-    /* Expander */
     .streamlit-expanderHeader {
         background-color: #f5f5f5;
         border: 1px solid #000000;
@@ -106,7 +102,6 @@ st.markdown("""
         border-bottom: 1px solid #000000;
     }
     
-    /* Alert boxes */
     .stAlert {
         background-color: #f5f5f5;
         border-left: 2px solid #000000;
@@ -123,7 +118,6 @@ st.markdown("""
         font-family: 'Courier New', monospace;
     }
     
-    /* Code block */
     code {
         background-color: #f5f5f5;
         color: #000000;
@@ -230,7 +224,7 @@ with col_left:
         
         st.markdown("---")
         
-        if st.button("PREDICT"):
+        if st.button("> predict"):
             input_name = session.get_inputs()[0].name
             predictions = session.run(None, {input_name: img_array})[0]
             
