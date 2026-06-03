@@ -154,9 +154,8 @@ input_shape = session.get_inputs()[0].shape
 img_size = f"{input_shape[1]}x{input_shape[2]}"
 
 st.markdown(f"""
-> rule: support 30 classes | image size {img_size} | RGB format
+> version 1.0 2026 by Luong Ngoc Thuan Khanh Anh Doan Hung 
 """)
-st.markdown("---")
 
 # Food data with Vietnamese descriptions
 FOOD_DATA = {
