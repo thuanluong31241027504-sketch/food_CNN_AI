@@ -41,7 +41,7 @@ st.markdown("""
         font-weight: normal;
         font-family: 'Courier New', monospace;
         font-size: 1.8rem;
-        margin-bottom: 0;
+        margin-bottom: 0.5rem;
     }
     
     h2, h3, h4 {
@@ -151,8 +151,17 @@ if session is None:
 input_shape = session.get_inputs()[0].shape
 img_size = f"{input_shape[1]}x{input_shape[2]}"
 
+# App introduction
 st.markdown(f"""
-> rule: support 30 classes | image size {img_size} | RGB format
+> PR: ung dung nhan dien 30 mon an Viet Nam su dung CNN
+> image size: {img_size} | RGB format | 30 classes
+""")
+
+# Instruction with 3 steps
+st.markdown("""
+> buoc 1: chon file anh (jpg, jpeg, png)
+> buoc 2: nhan nut predict
+> buoc 3: xem ket qua va do tin cay
 """)
 
 # Food data with Vietnamese descriptions
@@ -188,13 +197,6 @@ FOOD_DATA = {
     'Pho': 'Phở - Nước dùng trong ngọt xương, bánh phở trắng mềm, thịt bò tái hoặc chín, rau thơm, hành',
     'Xoi xeo': 'Xôi xéo - Xôi nếp vàng ươm, đậu xanh, hành phi, ăn kèm ruốc, chả, hoặc đường'
 }
-
-# Instruction with > on each line
-st.markdown("""
-> upload image (jpg, jpeg, png)
-> click predict
-> view result & confidence
-""")
 
 # Layout
 col_left, col_right = st.columns([0.45, 0.55])
