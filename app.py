@@ -147,14 +147,11 @@ if session is None:
     st.error("> model.onnx not found")
     st.stop()
 
-# Get model info
-input_shape = session.get_inputs()[0].shape
-img_size = f"{input_shape[1]}x{input_shape[2]}"
-
 # App introduction
-st.markdown(f"""
-> PR: ung dung nhan dien 30 mon an Viet Nam su dung CNN
-> image size: {img_size} | RGB format | 30 classes
+st.markdown("""
+> nhan dien 30 mon an truyen thong Viet Nam
+> su dung mo hinh CNN voi do chinh xac cao
+> tai anh bat ky de nhan dien ngay
 """)
 
 # Instruction with 3 steps
