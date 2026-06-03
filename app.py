@@ -24,14 +24,23 @@ def load_onnx_model():
     """Load model ONNX"""
     model_path = "model.onnx"
     if os.path.exists(model_path):
-        return ort.InferenceSession(model_path)
-    return None
+        session = ort.InferenceSession(model_path)
+        
+        # Lấy thông tin input/output
+        input_info = session.get_inputs()[0]
+        output_info = session.get_outputs()[0]
+        
+        st.sidebar.success(f"✅ Model loaded!")
+        st.sidebar.write(f"Input: {input_info.name}")
+        st.sidebar.write(f"Shape: {input_info.shape}")
+        st.sidebar.write(f"Type: {input_info.type}")
+        
+        return session, input_info, output_info
+    return None, None, None
 
 # Sidebar
 with st.sidebar:
     st.header("⚙️ Thông tin")
-    st.success("✅ Model ONNX đã sẵn sàng")
-    st.write("🎯 Nhận diện món ăn Việt Nam")
     
     # Upload model (nếu cần)
     uploaded_model = st.file_uploader("Upload model.onnx", type=['onnx'])
@@ -42,11 +51,9 @@ with st.sidebar:
         st.rerun()
 
 # Load model
-onnx_session = load_onnx_model()
+onnx_session, input_info, output_info = load_onnx_model()
 
 if onnx_session is not None:
-    st.success("✅ Model đã được load thành công!")
-    
     col1, col2 = st.columns([1, 1])
     
     with col1:
@@ -61,38 +68,45 @@ if onnx_session is not None:
         if uploaded_file:
             if st.button("🔍 Dự đoán", type="primary", use_container_width=True):
                 with st.spinner("Đang xử lý..."):
-                    # Tiền xử lý ảnh
-                    img = image.resize((128, 128))
-                    img_array = np.array(img).astype(np.float32) / 255.0
-                    img_array = np.expand_dims(img_array, axis=0)
+                    try:
+                        # Tiền xử lý ảnh
+                        img = image.resize((128, 128))
+                        img_array = np.array(img).astype(np.float32)
+                        
+                        # Normalize (giống khi train)
+                        img_array = img_array / 255.0
+                        
+                        # Thêm batch dimension
+                        img_array = np.expand_dims(img_array, axis=0)
+                        
+                        # Kiểm tra shape
+                        st.write(f"Input shape: {img_array.shape}")
+                        st.write(f"Expected shape: {input_info.shape}")
+                        
+                        # Dự đoán với ONNX
+                        input_name = input_info.name
+                        predictions = onnx_session.run([output_info.name], {input_name: img_array})[0]
+                        
+                        predicted_idx = np.argmax(predictions[0])
+                        confidence = np.max(predictions[0])
+                        
+                        st.success(f"### 🎯 Kết quả: **{CLASS_NAMES[predicted_idx]}**")
+                        st.info(f"📊 Độ tin cậy: **{confidence:.2%}**")
+                        
+                        # Hiển thị top 5
+                        st.write("### 🏆 Top 5 dự đoán:")
+                        top5_idx = np.argsort(predictions[0])[-5:][::-1]
+                        for idx in top5_idx:
+                            st.progress(float(predictions[0][idx]), 
+                                       text=f"{CLASS_NAMES[idx]}: {predictions[0][idx]:.2%}")
                     
-                    # Dự đoán với ONNX
-                    input_name = onnx_session.get_inputs()[0].name
-                    predictions = onnx_session.run(None, {input_name: img_array})[0]
-                    
-                    predicted_idx = np.argmax(predictions[0])
-                    confidence = np.max(predictions[0])
-                    
-                    st.success(f"### 🎯 Kết quả: **{CLASS_NAMES[predicted_idx]}**")
-                    st.info(f"📊 Độ tin cậy: **{confidence:.2%}**")
-                    
-                    # Hiển thị top 5
-                    st.write("### 🏆 Top 5 dự đoán:")
-                    top5_idx = np.argsort(predictions[0])[-5:][::-1]
-                    for idx in top5_idx:
-                        st.progress(predictions[0][idx], 
-                                   text=f"{CLASS_NAMES[idx]}: {predictions[0][idx]:.2%}")
-    
-    # Thông tin model
-    with st.expander("📋 Thông tin model"):
-        st.write(f"- Input name: {onnx_session.get_inputs()[0].name}")
-        st.write(f"- Input shape: {onnx_session.get_inputs()[0].shape}")
-        st.write(f"- Output name: {onnx_session.get_outputs()[0].name}")
-        st.write(f"- Số classes: {len(CLASS_NAMES)}")
+                    except Exception as e:
+                        st.error(f"Lỗi: {str(e)}")
+                        st.info("💡 Kiểm tra lại kích thước ảnh đầu vào")
 
 else:
     st.info("👈 Vui lòng upload file model.onnx ở thanh bên trái")
 
 st.markdown("---")
-st.caption("🍜 CNN Model - Nhận diện món ăn Việt Nam | Chạy với ONNX Runtime")
+st.caption("🍜 CNN Model - Nhận diện món ăn Việt Nam")
 
