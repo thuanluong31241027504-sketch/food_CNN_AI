@@ -28,7 +28,7 @@ st.markdown("""
         font-family: 'Courier New', 'SF Mono', monospace;
     }
     
-    /* Blinking cursor for underscore */
+    /* Blinking cursor */
     @keyframes blink {
         0%, 50% { opacity: 1; }
         51%, 100% { opacity: 0; }
@@ -48,7 +48,6 @@ st.markdown("""
         margin-bottom: 0;
     }
     
-    /* Headers */
     h2, h3, h4 {
         color: #000000;
         font-weight: normal;
@@ -57,7 +56,6 @@ st.markdown("""
         margin-bottom: 0.5rem;
     }
     
-    /* Regular text */
     p, li, span, div, label {
         color: #000000;
         font-family: 'Courier New', monospace;
@@ -70,20 +68,21 @@ st.markdown("""
         border-radius: 0px;
     }
     
-    /* Button */
+    /* Button - FIXED */
     .stButton > button {
-        background-color: #000000;
-        color: #ffffff;
-        border: none;
-        border-radius: 0px;
-        padding: 0.5rem 1rem;
-        font-family: 'Courier New', monospace;
-        width: 100%;
+        background-color: #000000 !important;
+        color: #ffffff !important;
+        border: none !important;
+        border-radius: 0px !important;
+        padding: 0.5rem 1rem !important;
+        font-family: 'Courier New', monospace !important;
+        font-weight: normal !important;
+        width: 100% !important;
     }
     
     .stButton > button:hover {
-        background-color: #333333;
-        color: #ffffff;
+        background-color: #333333 !important;
+        color: #ffffff !important;
     }
     
     /* Progress bar */
@@ -91,53 +90,43 @@ st.markdown("""
         background-color: #000000;
     }
     
-    /* Scrollable container for class list */
-    .scrollable-list {
-        max-height: 500px;
-        overflow-y: auto;
+    /* Expander */
+    .streamlit-expanderHeader {
+        background-color: #f5f5f5;
         border: 1px solid #000000;
-        padding: 0.5rem;
-        background-color: #fafafa;
+        border-radius: 0px;
+        font-family: 'Courier New', monospace;
+        color: #000000;
     }
     
-    .class-item {
-        padding: 0.3rem 0;
-        border-bottom: 1px solid #eeeeee;
-        cursor: pointer;
+    .streamlit-expanderContent {
+        background-color: #ffffff;
+        border-left: 1px solid #000000;
+        border-right: 1px solid #000000;
+        border-bottom: 1px solid #000000;
     }
     
-    .class-item:hover {
-        background-color: #f0f0f0;
-    }
-    
-    /* Scrollbar styling */
-    ::-webkit-scrollbar {
-        width: 8px;
-    }
-    ::-webkit-scrollbar-track {
-        background: #f1f1f1;
-    }
-    ::-webkit-scrollbar-thumb {
-        background: #000000;
-    }
-    
-    /* Info/Success boxes */
+    /* Alert boxes */
     .stAlert {
         background-color: #f5f5f5;
         border-left: 2px solid #000000;
         border-radius: 0px;
     }
     
-    /* Divider */
     hr {
         border-color: #000000;
         margin: 1rem 0;
     }
     
-    /* Caption */
     .stCaption {
         color: #666666;
         font-family: 'Courier New', monospace;
+    }
+    
+    /* Code block */
+    code {
+        background-color: #f5f5f5;
+        color: #000000;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -228,10 +217,8 @@ with col_left:
     if uploaded_image:
         image = Image.open(uploaded_image)
         
-        # Display image
         st.image(image, caption="", width=280)
         
-        # Process image
         if image.mode == 'RGBA':
             image = image.convert('RGB')
         
@@ -243,7 +230,7 @@ with col_left:
         
         st.markdown("---")
         
-        if st.button("> predict"):
+        if st.button("PREDICT"):
             input_name = session.get_inputs()[0].name
             predictions = session.run(None, {input_name: img_array})[0]
             
@@ -271,12 +258,10 @@ with col_right:
     st.markdown("### > supported classes")
     st.caption("30 mon an viet nam | cuon de xem chi tiet")
     
-    # Scrollable list with expanders
     with st.container():
         for i, (food, desc) in enumerate(FOOD_DATA.items()):
             with st.expander(f"{i+1:02d}. {food}"):
                 st.caption(desc)
 
-# Footer
 st.markdown("---")
 st.caption("cnn model | vietnamese food recognition")
