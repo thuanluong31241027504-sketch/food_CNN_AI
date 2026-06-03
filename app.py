@@ -10,7 +10,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# Custom CSS - White background, black text, Terminal font
+# Custom CSS
 st.markdown("""
 <style>
     /* Remove default Streamlit styling */
@@ -23,84 +23,114 @@ st.markdown("""
         background-color: #ffffff;
     }
     
-    /* Terminal font for all text */
-    * {
-        font-family: 'Courier New', 'SF Mono', 'Monaco', 'Consolas', monospace !important;
+    /* Terminal font */
+    html, body, [class*="css"] {
+        font-family: 'Courier New', 'SF Mono', monospace;
     }
     
     /* Headers */
     h1, h2, h3, h4, h5, h6 {
-        color: #000000 !important;
-        font-weight: normal !important;
+        color: #000000;
+        font-weight: normal;
+        font-family: 'Courier New', monospace;
+        margin-top: 0;
+        margin-bottom: 0.5rem;
     }
     
     /* Regular text */
     p, li, span, div, label {
-        color: #000000 !important;
+        color: #000000;
+        font-family: 'Courier New', monospace;
     }
     
     /* File uploader */
     .stFileUploader > div {
-        background-color: #f0f0f0 !important;
-        border: 1px solid #000000 !important;
-        border-radius: 0px !important;
+        background-color: #f5f5f5;
+        border: 1px solid #000000;
+        border-radius: 0px;
+    }
+    
+    .stFileUploader > div > div {
+        color: #000000;
     }
     
     /* Button */
     .stButton > button {
-        background-color: #000000 !important;
-        color: #ffffff !important;
-        border: none !important;
-        border-radius: 0px !important;
-        padding: 0.5rem 1rem !important;
-        font-weight: normal !important;
-        width: 100% !important;
+        background-color: #000000;
+        color: #ffffff;
+        border: none;
+        border-radius: 0px;
+        padding: 0.5rem 1rem;
+        font-family: 'Courier New', monospace;
+        width: 100%;
     }
     
     .stButton > button:hover {
-        background-color: #333333 !important;
-        color: #ffffff !important;
+        background-color: #333333;
+        color: #ffffff;
     }
     
     /* Progress bar */
     .stProgress > div > div > div {
-        background-color: #000000 !important;
+        background-color: #000000;
     }
     
-    /* Success/Info boxes */
-    .stSuccess, .stInfo {
-        background-color: #f0f0f0 !important;
-        border-left: 2px solid #000000 !important;
-        border-radius: 0px !important;
-        color: #000000 !important;
+    /* Expander */
+    .streamlit-expanderHeader {
+        background-color: #f5f5f5;
+        border: 1px solid #000000;
+        border-radius: 0px;
+        font-family: 'Courier New', monospace;
+    }
+    
+    .streamlit-expanderContent {
+        background-color: #ffffff;
+        border-left: 1px solid #000000;
+        border-right: 1px solid #000000;
+        border-bottom: 1px solid #000000;
+        font-family: 'Courier New', monospace;
+    }
+    
+    /* Info/Success boxes */
+    .stAlert {
+        background-color: #f5f5f5;
+        border-left: 2px solid #000000;
+        border-radius: 0px;
     }
     
     /* Divider */
     hr {
-        border-color: #000000 !important;
-        border-width: 1px !important;
+        border-color: #000000;
+        margin: 1rem 0;
     }
     
     /* Caption */
     .stCaption {
-        color: #666666 !important;
+        color: #666666;
+        font-family: 'Courier New', monospace;
     }
     
     /* Sidebar */
     [data-testid="stSidebar"] {
-        background-color: #f5f5f5 !important;
-        border-right: 1px solid #000000 !important;
+        background-color: #fafafa;
+        border-right: 1px solid #000000;
     }
     
-    /* Code blocks */
-    code {
-        background-color: #f0f0f0 !important;
-        color: #000000 !important;
+    /* Fix font overlap */
+    .element-container {
+        margin-bottom: 0rem;
+    }
+    
+    blockquote {
+        margin: 0;
+        padding: 0.5rem 1rem;
+        border-left: 2px solid #000000;
+        background-color: #f5f5f5;
     }
 </style>
 """, unsafe_allow_html=True)
 
-# Title with prompt style
+# Title
 st.markdown("# > Vietnam Food Recognition_")
 st.markdown("---")
 
@@ -113,65 +143,69 @@ def load_model():
         return ort.InferenceSession(MODEL_PATH)
     return None
 
-# Auto load model
 session = load_model()
 
 if session is None:
     st.error("> model.onnx not found")
     st.stop()
 
-# Model info
+# Get model info
 input_shape = session.get_inputs()[0].shape
-st.caption(f"input: {input_shape[1]}x{input_shape[2]}x{input_shape[3]} | output: 30 classes")
+img_size = f"{input_shape[1]}x{input_shape[2]}"
+num_classes = input_shape[1]
+
+# Rule box
+st.markdown(f"""
+> rule: support 30 classes | image size {img_size} | RGB format
+""")
 st.markdown("---")
 
-# Class names and descriptions
+# Food data with descriptions
 FOOD_DATA = {
-    'Banh beo': 'Steamed rice cakes topped with shrimp, served with fish sauce',
-    'Banh bot loc': 'Tapioca dumplings filled with shrimp and pork',
-    'Banh can': 'Small ceramic bowl pancakes with quail eggs',
-    'Banh canh': 'Thick noodle soup with pork and shrimp',
-    'Banh chung': 'Square sticky rice cake with mung bean and pork',
-    'Banh cuon': 'Steamed rice rolls with minced pork and mushrooms',
-    'Banh duc': 'Soft rice cake with pork and fried shallots',
-    'Banh gio': 'Pyramid-shaped rice dumpling with pork',
-    'Banh khot': 'Mini savory pancakes with shrimp',
-    'Banh mi': 'Vietnamese baguette sandwich with various fillings',
-    'Banh pia': 'Durian or mung bean cake with salted egg',
-    'Banh tet': 'Cylindrical sticky rice cake for Tet holiday',
-    'Banh trang nuong': 'Grilled rice paper with egg and toppings',
-    'Banh xeo': 'Crispy turmeric pancake with shrimp, pork, bean sprouts',
-    'Bun bo Hue': 'Spicy beef noodle soup from Hue',
+    'Banh beo': 'Steamed rice cakes with shrimp',
+    'Banh bot loc': 'Tapioca dumplings with shrimp and pork',
+    'Banh can': 'Mini ceramic bowl pancakes',
+    'Banh canh': 'Thick noodle soup',
+    'Banh chung': 'Square sticky rice cake',
+    'Banh cuon': 'Steamed rice rolls',
+    'Banh duc': 'Soft rice cake',
+    'Banh gio': 'Pyramid rice dumpling',
+    'Banh khot': 'Mini savory pancakes',
+    'Banh mi': 'Vietnamese baguette sandwich',
+    'Banh pia': 'Durian cake with salted egg',
+    'Banh tet': 'Cylindrical sticky rice cake',
+    'Banh trang nuong': 'Grilled rice paper',
+    'Banh xeo': 'Crispy turmeric pancake',
+    'Bun bo Hue': 'Spicy beef noodle soup',
     'Bun dau mam tom': 'Vermicelli with tofu and shrimp paste',
     'Bun mam': 'Fermented fish noodle soup',
-    'Bun rieu': 'Crab noodle soup with tomato broth',
-    'Bun thit nuong': 'Vermicelli with grilled pork and herbs',
+    'Bun rieu': 'Crab noodle soup',
+    'Bun thit nuong': 'Vermicelli with grilled pork',
     'Ca kho to': 'Caramelized fish in clay pot',
-    'Canh chua': 'Sweet and sour soup with fish and vegetables',
-    'Cao lau': 'Hoi An noodles with pork and greens',
-    'Chao long': 'Pork congee with offal',
-    'Com tam': 'Broken rice with grilled pork and egg',
-    'Goi cuon': 'Fresh spring rolls with shrimp, pork, herbs',
-    'Hu tieu': 'Noodle soup with various meats and seafood',
-    'Mi quang': 'Quang Nam noodles with turmeric and herbs',
-    'Nem chua': 'Fermented pork roll with chili and garlic',
-    'Pho': 'Iconic beef or chicken noodle soup with herbs',
-    'Xoi xeo': 'Sticky rice with mung bean and fried shallots'
+    'Canh chua': 'Sweet and sour soup',
+    'Cao lau': 'Hoi An noodles',
+    'Chao long': 'Pork congee',
+    'Com tam': 'Broken rice with grilled pork',
+    'Goi cuon': 'Fresh spring rolls',
+    'Hu tieu': 'Noodle soup',
+    'Mi quang': 'Turmeric noodles',
+    'Nem chua': 'Fermented pork roll',
+    'Pho': 'Iconic noodle soup',
+    'Xoi xeo': 'Sticky rice with mung bean'
 }
 
-# Two columns layout
-col_left, col_right = st.columns([0.6, 0.4])
+# Layout
+col_left, col_right = st.columns([0.5, 0.5])
 
 with col_left:
-    st.markdown("### upload image")
+    st.markdown("### > upload")
     uploaded_image = st.file_uploader("", type=['jpg', 'jpeg', 'png'])
     
     if uploaded_image:
         image = Image.open(uploaded_image)
         
-        # Display image in grayscale for minimal look
-        gray_image = image.convert('L')
-        st.image(gray_image, caption="", use_container_width=False, width=300)
+        # Display image
+        st.image(image, caption="", width=280)
         
         # Process image
         if image.mode == 'RGBA':
@@ -201,7 +235,6 @@ with col_left:
             st.caption("description")
             st.write(FOOD_DATA[food_name])
             
-            # Top 5
             st.markdown("---")
             st.caption("top 5")
             top5_idx = np.argsort(predictions[0])[-5:][::-1]
@@ -211,13 +244,12 @@ with col_left:
                 st.progress(prob, text=f"{i}. {name} - {prob:.2%}")
 
 with col_right:
-    st.markdown("### supported foods")
+    st.markdown("### > supported classes")
     st.caption("30 vietnamese dishes")
     
-    # Scrollable list of foods
-    for i, (food, desc) in enumerate(FOOD_DATA.items()):
-        with st.expander(f"> {i+1:02d}. {food}"):
-            st.caption(desc)
+    # Display list as code block
+    food_list = "\n".join([f"{i+1:02d}. {name}" for i, name in enumerate(FOOD_DATA.keys())])
+    st.code(food_list, language="")
 
 # Footer
 st.markdown("---")
