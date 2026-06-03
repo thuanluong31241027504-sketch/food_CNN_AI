@@ -1,148 +1,218 @@
-from tensorflow.keras.models import load_model
-from tensorflow.keras.utils import load_img
+import streamlit as st
 import numpy as np
-import matplotlib.pyplot as plt
-import kagglehub
+from PIL import Image
+import onnxruntime as ort
 import os
-import pandas as pd
-from google.colab import files
 
-# 1. Upload ảnh cần test
-print("📤 Upload ảnh cần test:")
-uploaded_img = files.upload()
-img_path = list(uploaded_img.keys())[0]
+st.set_page_config(page_title="Check Model ONNX", page_icon="🔍", layout="wide")
 
-# 2. Upload model .h5
-print("\n📤 Upload model .h5:")
-uploaded_model = files.upload()
-model_file = list(uploaded_model.keys())[0]
+st.title("🔍 Kiểm tra Model ONNX")
+st.markdown("---")
 
-# 3. Load model
-model = load_model(model_file)
-print(f"\n✅ Model loaded: {model_file}")
+# 30 món ăn từ dataset
+CLASS_NAMES = [
+    'Banh beo', 'Banh bot loc', 'Banh can', 'Banh cuon', 'Banh hoi',
+    'Banh uot', 'Banh xeo', 'Bo bia', 'Bun bo Hue', 'Bun cha',
+    'Bun mam', 'Bun rieu', 'Bun thit nuong', 'Cao lau', 'Com ga',
+    'Chao long', 'Cha gio', 'Cha ram', 'Com tam', 'Goi cuon',
+    'Hu tieu', 'Mi Quang', 'Pho', 'Xoi', 'Cha ca La Vong',
+    'Lau', 'Bo kho', 'Ga nuong', 'Vit quay', 'Heo quay'
+]
 
-# 4. Lấy class names từ model
-# Thử lấy từ model trước
-if hasattr(model, 'classes'):
-    CLASS_NAMES = model.classes
-    print(f"Classes từ model: {len(CLASS_NAMES)} classes")
-else:
-    # Hoặc lấy từ dataset
-    print("📥 Download dataset để lấy class names...")
-    path = kagglehub.dataset_download("quandang/vietnamese-foods")
-    
-    # Tìm thư mục Images
-    images_path = None
-    for root, dirs, files in os.walk(path):
-        if 'Images' in dirs:
-            images_path = os.path.join(root, 'Images')
-            break
-    
-    def create_dataframe(directory):
-        filepaths, labels = [], []
-        for label in os.listdir(directory):
-            class_dir = os.path.join(directory, label)
-            if os.path.isdir(class_dir):
-                for file in os.listdir(class_dir):
-                    if file.lower().endswith(('.jpg', '.jpeg', '.png')):
-                        filepaths.append(os.path.join(class_dir, file))
-                        labels.append(label)
-        return pd.DataFrame({'filepath': filepaths, 'label': labels})
-    
-    train_df = create_dataframe(os.path.join(images_path, 'Train'))
-    CLASS_NAMES = sorted(train_df['label'].unique())
+# Session state
+if 'model_loaded' not in st.session_state:
+    st.session_state.model_loaded = False
+if 'model_info' not in st.session_state:
+    st.session_state.model_info = None
+if 'session' not in st.session_state:
+    st.session_state.session = None
 
-print(f"\n📋 Danh sách {len(CLASS_NAMES)} món ăn:")
-for i, name in enumerate(CLASS_NAMES[:10]):
-    print(f"   {i+1}. {name}")
-print("   ...")
+# Sidebar - Upload model
+with st.sidebar:
+    st.header("📁 Upload Model")
+    
+    uploaded_model = st.file_uploader("Chọn file model.onnx", type=['onnx'])
+    
+    if uploaded_model:
+        with open("model.onnx", "wb") as f:
+            f.write(uploaded_model.getbuffer())
+        st.success("✅ Đã upload model!")
+        
+        # Load lại model
+        try:
+            session = ort.InferenceSession("model.onnx")
+            st.session_state.session = session
+            st.session_state.model_loaded = True
+            
+            # Lấy thông tin model
+            info = {}
+            info['inputs'] = []
+            for inp in session.get_inputs():
+                info['inputs'].append({
+                    'name': inp.name,
+                    'shape': inp.shape,
+                    'type': inp.type
+                })
+            
+            info['outputs'] = []
+            for out in session.get_outputs():
+                info['outputs'].append({
+                    'name': out.name,
+                    'shape': out.shape,
+                    'type': out.type
+                })
+            
+            st.session_state.model_info = info
+            st.rerun()
+            
+        except Exception as e:
+            st.error(f"Lỗi load model: {str(e)}")
+            st.session_state.model_loaded = False
 
-# 5. Test với nhiều kích thước input khác nhau
-print("\n" + "="*60)
-print("🔍 TEST VỚI CÁC KÍCH THƯỚC KHÁC NHAU")
-print("="*60)
+# Main content
+col1, col2 = st.columns([1, 1])
 
-# Đọc ảnh gốc
-img_original = load_img(img_path)
-print(f"\n📸 Ảnh gốc: {img_original.size}, mode: {img_original.mode}")
+with col1:
+    st.header("📊 Thông tin Model")
+    
+    if st.session_state.model_loaded and st.session_state.model_info:
+        info = st.session_state.model_info
+        
+        st.subheader("📥 Input:")
+        for inp in info['inputs']:
+            st.write(f"- **Name:** `{inp['name']}`")
+            st.write(f"- **Shape:** `{inp['shape']}`")
+            st.write(f"- **Type:** `{inp['type']}`")
+            
+            # Gợi ý kích thước ảnh
+            if len(inp['shape']) == 4:
+                height = inp['shape'][1]
+                width = inp['shape'][2]
+                channels = inp['shape'][3]
+                st.info(f"💡 **Ảnh cần resize về:** `{height} x {width} x {channels}`")
+        
+        st.subheader("📤 Output:")
+        for out in info['outputs']:
+            st.write(f"- **Name:** `{out['name']}`")
+            st.write(f"- **Shape:** `{out['shape']}`")
+            st.write(f"- **Type:** `{out['type']}`")
+            
+            if len(out['shape']) == 2:
+                num_classes = out['shape'][1]
+                st.info(f"💡 **Số classes:** `{num_classes}` món ăn")
+                
+                if num_classes == 30:
+                    st.success("✅ Model có 30 classes - khớp với dataset!")
+                else:
+                    st.warning(f"⚠️ Model có {num_classes} classes, nhưng danh sách hiện tại có 30 classes")
+        
+        st.balloons()
+        st.success("✅ Model loaded thành công!")
+        
+    else:
+        st.info("👈 Chưa có model. Hãy upload file .onnx ở thanh bên trái")
 
-# Test với các target_size khác nhau
-test_sizes = [(128, 128), (224, 224), (299, 299)]
-results = {}
+with col2:
+    st.header("🔮 Test Dự đoán")
+    
+    if not st.session_state.model_loaded:
+        st.warning("⚠️ Vui lòng upload model trước!")
+    else:
+        uploaded_image = st.file_uploader("Chọn ảnh để test...", type=['jpg', 'jpeg', 'png', 'webp'])
+        
+        if uploaded_image:
+            # Đọc ảnh
+            image = Image.open(uploaded_image)
+            
+            st.image(image, caption="Ảnh gốc", width=250)
+            
+            # Hiển thị thông tin ảnh gốc
+            st.write(f"**Kích thước gốc:** {image.size}")
+            st.write(f"**Mode:** {image.mode}")
+            
+            # Lấy thông tin input shape từ model
+            if st.session_state.model_info:
+                input_shape = st.session_state.model_info['inputs'][0]['shape']
+                
+                if len(input_shape) == 4:
+                    target_size = (input_shape[1], input_shape[2])  # (height, width)
+                    expected_channels = input_shape[3]
+                    
+                    st.info(f"📐 Model yêu cầu: {target_size[0]}x{target_size[1]}, {expected_channels} channels")
+                    
+                    # Xử lý ảnh
+                    with st.spinner("Đang xử lý..."):
+                        # Chuyển sang RGB nếu cần
+                        if image.mode == 'RGBA':
+                            image = image.convert('RGB')
+                            st.write("✅ Đã chuyển RGBA → RGB")
+                        elif image.mode != 'RGB' and expected_channels == 3:
+                            image = image.convert('RGB')
+                            st.write(f"✅ Đã chuyển {image.mode} → RGB")
+                        
+                        # Resize
+                        img = image.resize(target_size)
+                        st.write(f"✅ Đã resize: {img.size}")
+                        
+                        # Chuyển sang array
+                        img_array = np.array(img).astype(np.float32)
+                        
+                        # Normalize
+                        img_array = img_array / 255.0
+                        
+                        # Reshape
+                        img_array = np.expand_dims(img_array, axis=0)
+                        
+                        st.write(f"✅ Final shape: {img_array.shape}")
+                    
+                    if st.button("🚀 Dự đoán", type="primary", use_container_width=True):
+                        with st.spinner("Đang dự đoán..."):
+                            try:
+                                session = st.session_state.session
+                                input_name = session.get_inputs()[0].name
+                                
+                                predictions = session.run(None, {input_name: img_array})[0]
+                                
+                                predicted_idx = np.argmax(predictions[0])
+                                confidence = float(np.max(predictions[0]))
+                                
+                                st.success(f"### 🎯 Kết quả: **{CLASS_NAMES[predicted_idx]}**")
+                                st.info(f"📊 Độ tin cậy: **{confidence:.2%}**")
+                                
+                                # Hiển thị Top 5
+                                st.write("### 🏆 Top 5 dự đoán:")
+                                top5_idx = np.argsort(predictions[0])[-5:][::-1]
+                                for idx in top5_idx:
+                                    prob = float(predictions[0][idx])
+                                    st.progress(prob, text=f"{CLASS_NAMES[idx]}: {prob:.2%}")
+                                
+                                # Hiển thị tất cả scores (bar chart)
+                                st.write("### 📊 Chi tiết tất cả classes:")
+                                
+                                # Chỉ hiển thị top 10 để dễ nhìn
+                                top10_idx = np.argsort(predictions[0])[-10:][::-1]
+                                
+                                import matplotlib.pyplot as plt
+                                fig, ax = plt.subplots(figsize=(8, 4))
+                                names = [CLASS_NAMES[i] for i in top10_idx]
+                                scores = [predictions[0][i] for i in top10_idx]
+                                
+                                bars = ax.barh(range(10), scores, color='coral')
+                                ax.set_yticks(range(10))
+                                ax.set_yticklabels(names, fontsize=9)
+                                ax.set_xlabel('Confidence')
+                                ax.set_title('Top 10 predictions')
+                                ax.set_xlim(0, 1)
+                                
+                                for i, (bar, score) in enumerate(zip(bars, scores)):
+                                    ax.text(score + 0.02, i, f'{score:.2%}', va='center', fontsize=8)
+                                
+                                st.pyplot(fig)
+                                
+                            except Exception as e:
+                                st.error(f"Lỗi khi dự đoán: {str(e)}")
 
-for target_size in test_sizes:
-    print(f"\n--- Test với target_size = {target_size} ---")
-    
-    # Load ảnh với kích thước khác nhau
-    img = load_img(img_path, target_size=target_size)
-    
-    # Hiển thị ảnh đã resize
-    plt.figure(figsize=(12, 4))
-    plt.subplot(1, 3, 1)
-    plt.imshow(img)
-    plt.title(f"Resize {target_size}")
-    plt.axis('off')
-    
-    # Tiền xử lý
-    img_array = np.array(img)
-    print(f"   Shape sau resize: {img_array.shape}")
-    
-    # Normalize
-    img_array = img_array / 255.0
-    print(f"   Min/Max: {img_array.min():.2f}/{img_array.max():.2f}")
-    
-    # Reshape
-    img_array = img_array.reshape(1, target_size[0], target_size[1], 3)
-    print(f"   Input shape: {img_array.shape}")
-    
-    # Dự đoán
-    predictions = model.predict(img_array, verbose=0)
-    predicted_idx = np.argmax(predictions[0])
-    confidence = np.max(predictions[0])
-    food_name = CLASS_NAMES[predicted_idx]
-    
-    results[target_size] = (food_name, confidence, predictions[0])
-    
-    print(f"   🎯 Kết quả: {food_name}")
-    print(f"   📊 Độ tin cậy: {confidence:.2%}")
-    
-    # Hiển thị Top 3
-    top3_idx = np.argsort(predictions[0])[-3:][::-1]
-    print(f"   🏆 Top 3:")
-    for idx in top3_idx:
-        print(f"      - {CLASS_NAMES[idx]}: {predictions[0][idx]:.2%}")
-    
-    # Hiển thị bar chart
-    plt.subplot(1, 3, 2)
-    top5_idx = np.argsort(predictions[0])[-5:][::-1]
-    top5_names = [CLASS_NAMES[i] for i in top5_idx]
-    top5_scores = [predictions[0][i] for i in top5_idx]
-    plt.barh(range(5), top5_scores, color='coral')
-    plt.yticks(range(5), top5_names)
-    plt.xlabel('Confidence')
-    plt.title(f'Top 5 - Size {target_size[0]}')
-    plt.xlim(0, 1)
-    
-    plt.subplot(1, 3, 3)
-    plt.bar(range(10), predictions[0][:10], color='skyblue')
-    plt.xticks(range(10), CLASS_NAMES[:10], rotation=45, ha='right', fontsize=8)
-    plt.title('Top 10 classes')
-    plt.tight_layout()
-    plt.show()
-
-# 6. Kết luận
-print("\n" + "="*60)
-print("📊 KẾT LUẬN")
-print("="*60)
-print("\nKết quả dự đoán theo từng kích thước input:")
-for size, (food, conf, _) in results.items():
-    print(f"   {size[0]}x{size[1]}: {food} ({conf:.2%})")
-
-# 7. Kiểm tra thông tin model
-print("\n" + "="*60)
-print("🔧 THÔNG TIN MODEL")
-print("="*60)
-print(f"Input shape: {model.input_shape}")
-print(f"Output shape: {model.output_shape}")
-print(f"Number of layers: {len(model.layers)}")
+# Footer
+st.markdown("---")
+st.caption("🔧 App kiểm tra model ONNX - Hiển thị thông tin input/output và test dự đoán")
 
