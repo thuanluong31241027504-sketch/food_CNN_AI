@@ -28,8 +28,28 @@ st.markdown("""
         font-family: 'Courier New', 'SF Mono', monospace;
     }
     
+    /* Blinking cursor for underscore */
+    @keyframes blink {
+        0%, 50% { opacity: 1; }
+        51%, 100% { opacity: 0; }
+    }
+    
+    .blinking-cursor {
+        animation: blink 1s step-end infinite;
+        display: inline-block;
+        width: 10px;
+    }
+    
+    h1 {
+        color: #000000;
+        font-weight: normal;
+        font-family: 'Courier New', monospace;
+        font-size: 1.8rem;
+        margin-bottom: 0;
+    }
+    
     /* Headers */
-    h1, h2, h3, h4, h5, h6 {
+    h2, h3, h4 {
         color: #000000;
         font-weight: normal;
         font-family: 'Courier New', monospace;
@@ -48,10 +68,6 @@ st.markdown("""
         background-color: #f5f5f5;
         border: 1px solid #000000;
         border-radius: 0px;
-    }
-    
-    .stFileUploader > div > div {
-        color: #000000;
     }
     
     /* Button */
@@ -75,20 +91,34 @@ st.markdown("""
         background-color: #000000;
     }
     
-    /* Expander */
-    .streamlit-expanderHeader {
-        background-color: #f5f5f5;
+    /* Scrollable container for class list */
+    .scrollable-list {
+        max-height: 500px;
+        overflow-y: auto;
         border: 1px solid #000000;
-        border-radius: 0px;
-        font-family: 'Courier New', monospace;
+        padding: 0.5rem;
+        background-color: #fafafa;
     }
     
-    .streamlit-expanderContent {
-        background-color: #ffffff;
-        border-left: 1px solid #000000;
-        border-right: 1px solid #000000;
-        border-bottom: 1px solid #000000;
-        font-family: 'Courier New', monospace;
+    .class-item {
+        padding: 0.3rem 0;
+        border-bottom: 1px solid #eeeeee;
+        cursor: pointer;
+    }
+    
+    .class-item:hover {
+        background-color: #f0f0f0;
+    }
+    
+    /* Scrollbar styling */
+    ::-webkit-scrollbar {
+        width: 8px;
+    }
+    ::-webkit-scrollbar-track {
+        background: #f1f1f1;
+    }
+    ::-webkit-scrollbar-thumb {
+        background: #000000;
     }
     
     /* Info/Success boxes */
@@ -109,29 +139,16 @@ st.markdown("""
         color: #666666;
         font-family: 'Courier New', monospace;
     }
-    
-    /* Sidebar */
-    [data-testid="stSidebar"] {
-        background-color: #fafafa;
-        border-right: 1px solid #000000;
-    }
-    
-    /* Fix font overlap */
-    .element-container {
-        margin-bottom: 0rem;
-    }
-    
-    blockquote {
-        margin: 0;
-        padding: 0.5rem 1rem;
-        border-left: 2px solid #000000;
-        background-color: #f5f5f5;
-    }
 </style>
 """, unsafe_allow_html=True)
 
-# Title
-st.markdown("# > Vietnam Food Recognition_")
+# Title with blinking cursor
+st.markdown("""
+<h1>
+    > Vietnam Food Recognition<span class="blinking-cursor">_</span>
+</h1>
+""", unsafe_allow_html=True)
+
 st.markdown("---")
 
 # Model path
@@ -152,50 +169,57 @@ if session is None:
 # Get model info
 input_shape = session.get_inputs()[0].shape
 img_size = f"{input_shape[1]}x{input_shape[2]}"
-num_classes = input_shape[1]
 
-# Rule box
 st.markdown(f"""
 > rule: support 30 classes | image size {img_size} | RGB format
 """)
 st.markdown("---")
 
-# Food data with descriptions
+# Food data with Vietnamese descriptions
 FOOD_DATA = {
-    'Banh beo': 'Steamed rice cakes with shrimp',
-    'Banh bot loc': 'Tapioca dumplings with shrimp and pork',
-    'Banh can': 'Mini ceramic bowl pancakes',
-    'Banh canh': 'Thick noodle soup',
-    'Banh chung': 'Square sticky rice cake',
-    'Banh cuon': 'Steamed rice rolls',
-    'Banh duc': 'Soft rice cake',
-    'Banh gio': 'Pyramid rice dumpling',
-    'Banh khot': 'Mini savory pancakes',
-    'Banh mi': 'Vietnamese baguette sandwich',
-    'Banh pia': 'Durian cake with salted egg',
-    'Banh tet': 'Cylindrical sticky rice cake',
-    'Banh trang nuong': 'Grilled rice paper',
-    'Banh xeo': 'Crispy turmeric pancake',
-    'Bun bo Hue': 'Spicy beef noodle soup',
-    'Bun dau mam tom': 'Vermicelli with tofu and shrimp paste',
-    'Bun mam': 'Fermented fish noodle soup',
-    'Bun rieu': 'Crab noodle soup',
-    'Bun thit nuong': 'Vermicelli with grilled pork',
-    'Ca kho to': 'Caramelized fish in clay pot',
-    'Canh chua': 'Sweet and sour soup',
-    'Cao lau': 'Hoi An noodles',
-    'Chao long': 'Pork congee',
-    'Com tam': 'Broken rice with grilled pork',
-    'Goi cuon': 'Fresh spring rolls',
-    'Hu tieu': 'Noodle soup',
-    'Mi quang': 'Turmeric noodles',
-    'Nem chua': 'Fermented pork roll',
-    'Pho': 'Iconic noodle soup',
-    'Xoi xeo': 'Sticky rice with mung bean'
+    'Banh beo': 'Bánh bèo - Bánh trắng mềm, trên rắc tôm chấy, hành phi, ăn với nước mắm chua ngọt',
+    'Banh bot loc': 'Bánh bột lọc - Bánh dai trong suốt, nhân tôm thịt, gói lá chuối',
+    'Banh can': 'Bánh căn - Bánh nhỏ đổ khuôn, ăn kèm trứng cút, hành phi, nước mắm',
+    'Banh canh': 'Bánh canh - Sợi bánh dày dai, nước dùng đậm đà với giò heo, cua, tôm',
+    'Banh chung': 'Bánh chưng - Bánh vuông gói lá dong, nhân đậu xanh, thịt mỡ, ăn Tết',
+    'Banh cuon': 'Bánh cuốn - Bánh tráng mỏng cuộn chả lụa, mộc nhĩ, chấm nước mắm chua ngọt',
+    'Banh duc': 'Bánh đúc - Bánh mềm xốp, ăn nóng với mộc nhĩ, hành phi, hoặc ăn nguội với nước mắm',
+    'Banh gio': 'Bánh giò - Bánh nhân thịt băm, mộc nhĩ, củ đậu, gói lá chuối',
+    'Banh khot': 'Bánh khọt - Bánh nhỏ giòn rụm, nhân tôm thịt, ăn kèm rau sống, nước mắm',
+    'Banh mi': 'Bánh mì - Ổ bánh mì giòn ruột xốp, kẹp pate, thịt, chả, rau, đồ chua',
+    'Banh pia': 'Bánh pía - Bánh Sóc Trăng nhân sầu riêng, đậu xanh, trứng muối, vỏ bánh dẻo',
+    'Banh tet': 'Bánh tét - Bánh trụ dài, nhân đậu xanh thịt mỡ, ăn Tết miền Nam',
+    'Banh trang nuong': 'Bánh tráng nướng - Bánh tráng nướng giòn, phết trứng, hành, tôm khô, thịt băm',
+    'Banh xeo': 'Bánh xèo - Bánh vàng giòn, nhân tôm thịt giá đỗ, cuốn rau sống, chấm nước mắm chua cay',
+    'Bun bo Hue': 'Bún bò Huế - Bún sợi to, nước dùng cay thơm sả, bò bắp, giò heo, huyết',
+    'Bun dau mam tom': 'Bún đậu mắm tôm - Bún lá, đậu phụ chiên, chả cốm, dồi, ăn với mắm tôm chua cay',
+    'Bun mam': 'Bún mắm - Nước dùng từ mắm cá linh, cá sặc, ăn kèm bún, rau, cà tím, bông điên điển',
+    'Bun rieu': 'Bún riêu - Nước dùng chua thanh từ cà chua, riêu cua đồng, đậu phụ, ăn kèm rau sống',
+    'Bun thit nuong': 'Bún thịt nướng - Bún tươi, thịt nướng thơm, chả giò, rau sống, lạc rang, nước mắm chua ngọt',
+    'Ca kho to': 'Cá kho tộ - Cá kho nồi đất, thơm mềm, nước kho sánh mặn ngọt, ăn nóng với cơm trắng',
+    'Canh chua': 'Canh chua cá linh - Canh chua thanh mát, cá linh, me, cà chua, bạc hà, giá đỗ',
+    'Cao lau': 'Cao lầu - Mì vàng dai, thịt xá xíu, giá đỗ, rau thơm, chút nước sốt đặc trưng Hội An',
+    'Chao long': 'Cháo lòng - Cháo nấu cùng nội tạng heo (tim, gan, lòng non), hành lá, tiêu, ăn kèm quẩy',
+    'Com tam': 'Cơm tấm - Cơm tấm sườn bì chả, ăn với đồ chua, dưa leo, hành lá, nước mắm ngọt',
+    'Goi cuon': 'Gỏi cuốn - Tôm thịt, bún, rau sống cuốn bánh tráng, chấm nước mắm pha hoặc tương đen',
+    'Hu tieu': 'Hủ tiếu - Sợi hủ tiếu dai, nước dùng trong, thịt băm, tôm, gan, lòng, ăn kèm rau sống',
+    'Mi quang': 'Mì Quảng - Mì vàng dai, ít nước, tôm thịt, đậu phộng, bánh tráng, rau sống',
+    'Nem chua': 'Nem chua - Nem chua thanh hóa vị chua cay, bọc lá ổi, dùng với tỏi ớt',
+    'Pho': 'Phở - Nước dùng trong ngọt xương, bánh phở trắng mềm, thịt bò tái hoặc chín, rau thơm, hành',
+    'Xoi xeo': 'Xôi xéo - Xôi nếp vàng ươm, đậu xanh, hành phi, ăn kèm ruốc, chả, hoặc đường'
 }
 
+# Instruction
+st.markdown("### > instruction")
+st.markdown("""
+> 1. upload image (jpg, jpeg, png)
+> 2. click predict
+> 3. view result & confidence
+""")
+st.markdown("---")
+
 # Layout
-col_left, col_right = st.columns([0.5, 0.5])
+col_left, col_right = st.columns([0.45, 0.55])
 
 with col_left:
     st.markdown("### > upload")
@@ -245,11 +269,13 @@ with col_left:
 
 with col_right:
     st.markdown("### > supported classes")
-    st.caption("30 vietnamese dishes")
+    st.caption("30 mon an viet nam | cuon de xem chi tiet")
     
-    # Display list as code block
-    food_list = "\n".join([f"{i+1:02d}. {name}" for i, name in enumerate(FOOD_DATA.keys())])
-    st.code(food_list, language="")
+    # Scrollable list with expanders
+    with st.container():
+        for i, (food, desc) in enumerate(FOOD_DATA.items()):
+            with st.expander(f"{i+1:02d}. {food}"):
+                st.caption(desc)
 
 # Footer
 st.markdown("---")
