@@ -1,6 +1,7 @@
 import streamlit as st
 import os
 import random
+import zipfile
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -19,48 +20,48 @@ st.set_page_config(page_title="Vietnamese Food CNN", page_icon="🍜", layout="w
 st.title("🍜 Vietnamese Food Recognition with CNN")
 st.markdown("---")
 
-# ==================== THAM SỐ GIỐNG HỆT CODE GỐC ====================
+# ==================== THAM SỐ GIỐNG CODE GỐC ====================
 BATCH_SIZE = 64
 LEARNING_RATE = 0.001
 EPOCHS = 30
 IMAGE_SIZE = (128, 128)
 
-# ==================== ĐỊNH NGHĨA MODEL CNN GIỐNG HỆT CODE GỐC ====================
+# ==================== ĐỊNH NGHĨA MODEL CNN ====================
 class VietnameseFoodCNN(nn.Module):
     def __init__(self, num_classes=30):
         super(VietnameseFoodCNN, self).__init__()
         
-        # Block 1 (giống hệt code gốc)
-        self.conv1_1 = nn.Conv2d(3, 32, kernel_size=3, padding='same')
+        # Block 1
+        self.conv1_1 = nn.Conv2d(3, 32, kernel_size=3, padding=1)
         self.bn1_1 = nn.BatchNorm2d(32)
-        self.conv1_2 = nn.Conv2d(32, 32, kernel_size=3, padding='same')
+        self.conv1_2 = nn.Conv2d(32, 32, kernel_size=3, padding=1)
         self.bn1_2 = nn.BatchNorm2d(32)
         self.pool1 = nn.MaxPool2d(2)
         self.dropout1 = nn.Dropout(0.25)
         
-        # Block 2 (giống hệt code gốc)
-        self.conv2_1 = nn.Conv2d(32, 64, kernel_size=3, padding='same')
+        # Block 2
+        self.conv2_1 = nn.Conv2d(32, 64, kernel_size=3, padding=1)
         self.bn2_1 = nn.BatchNorm2d(64)
-        self.conv2_2 = nn.Conv2d(64, 64, kernel_size=3, padding='same')
+        self.conv2_2 = nn.Conv2d(64, 64, kernel_size=3, padding=1)
         self.bn2_2 = nn.BatchNorm2d(64)
         self.pool2 = nn.MaxPool2d(2)
         self.dropout2 = nn.Dropout(0.30)
         
-        # Block 3 (giống hệt code gốc)
-        self.conv3_1 = nn.Conv2d(64, 128, kernel_size=3, padding='same')
+        # Block 3
+        self.conv3_1 = nn.Conv2d(64, 128, kernel_size=3, padding=1)
         self.bn3_1 = nn.BatchNorm2d(128)
-        self.conv3_2 = nn.Conv2d(128, 128, kernel_size=3, padding='same')
+        self.conv3_2 = nn.Conv2d(128, 128, kernel_size=3, padding=1)
         self.bn3_2 = nn.BatchNorm2d(128)
         self.pool3 = nn.MaxPool2d(2)
         self.dropout3 = nn.Dropout(0.35)
         
-        # Block 4 (giống hệt code gốc)
-        self.conv4_1 = nn.Conv2d(128, 256, kernel_size=3, padding='same')
+        # Block 4
+        self.conv4_1 = nn.Conv2d(128, 256, kernel_size=3, padding=1)
         self.bn4_1 = nn.BatchNorm2d(256)
         self.pool4 = nn.MaxPool2d(2)
         self.dropout4 = nn.Dropout(0.40)
         
-        # Head (GlobalAveragePooling2D + Dense(256) + Dropout(0.5) + Dense(30))
+        # Head
         self.global_avg_pool = nn.AdaptiveAvgPool2d(1)
         self.fc1 = nn.Linear(256, 256)
         self.dropout5 = nn.Dropout(0.5)
@@ -99,7 +100,7 @@ class VietnameseFoodCNN(nn.Module):
         
         return x
 
-# ==================== DATASET CLASS CHO PYTORCH ====================
+# ==================== DATASET CLASS ====================
 class VietnameseFoodDataset(Dataset):
     def __init__(self, dataframe, transform=None):
         self.dataframe = dataframe
@@ -122,7 +123,7 @@ class VietnameseFoodDataset(Dataset):
             
         return image, label_idx
 
-# ==================== HÀM TẠO DATAFRAME GIỐNG CODE GỐC ====================
+# ==================== HÀM TẠO DATAFRAME ====================
 def create_dataframe(directory):
     filepaths, labels = [], []
     for label in os.listdir(directory):
@@ -134,17 +135,7 @@ def create_dataframe(directory):
                     labels.append(label)
     return pd.DataFrame({'filepath': filepaths, 'label': labels})
 
-def merge_datasets(base_dirs, subset):
-    dfs = []
-    for base_dir in base_dirs:
-        subset_dir = os.path.join(base_dir, subset)
-        if os.path.exists(subset_dir):
-            dfs.append(create_dataframe(subset_dir))
-    return pd.concat(dfs, ignore_index=True) if dfs else pd.DataFrame(columns=['filepath', 'label'])
-
-# ==================== DATA AUGMENTATION GIỐNG CODE GỐC ====================
-# Code gốc dùng: rescale=1./255, rotation_range=30, width_shift_range=0.2, 
-# shear_range=0.2, zoom_range=0.2, horizontal_flip=True
+# ==================== DATA AUGMENTATION ====================
 train_transform = transforms.Compose([
     transforms.Resize(IMAGE_SIZE),
     transforms.RandomHorizontalFlip(p=0.5),
@@ -165,8 +156,8 @@ if 'classes' not in st.session_state:
     st.session_state.classes = None
 if 'trained' not in st.session_state:
     st.session_state.trained = False
-if 'dataset_path' not in st.session_state:
-    st.session_state.dataset_path = None
+if 'data_ready' not in st.session_state:
+    st.session_state.data_ready = False
 
 # Sidebar
 with st.sidebar:
@@ -174,69 +165,66 @@ with st.sidebar:
     st.write(f"Batch Size: {BATCH_SIZE}")
     st.write(f"Learning Rate: {LEARNING_RATE}")
     st.write(f"Epochs: {EPOCHS}")
-    st.write(f"Image Size: {IMAGE_SIZE}")
-    st.markdown("---")
-    
-    # Cho phép điều chỉnh (nhưng mặc định là số gốc)
-    use_custom = st.checkbox("Tùy chỉnh thông số (không khuyến nghị)")
-    if use_custom:
-        BATCH_SIZE = st.select_slider("Batch Size", options=[16, 32, 64, 128], value=64)
-        EPOCHS = st.slider("Epochs", 1, 50, 30)
+    st.write(f"Image Size: {IMAGE_SIZE[0]}x{IMAGE_SIZE[1]}")
 
-# Main content - Tabs
-tab1, tab2, tab3 = st.tabs(["📥 Download & Load Data", "🏗️ Build & Train", "🔮 Predict"])
+# Main content
+tab1, tab2, tab3 = st.tabs(["📁 Upload & Load Data", "🏗️ Build & Train", "🔮 Predict"])
 
-# ==================== TAB 1: DOWNLOAD & LOAD DATA ====================
+# ==================== TAB 1: UPLOAD DATA ====================
 with tab1:
-    st.header("1. Tải và chuẩn bị dữ liệu")
+    st.header("1. Upload và chuẩn bị dữ liệu")
     
-    col1, col2 = st.columns(2)
+    st.info("""
+    📌 **Hướng dẫn tải dataset:**
+    1. Truy cập: https://www.kaggle.com/datasets/quandang/vietnamese-foods
+    2. Click "Download" để tải file ZIP
+    3. Upload file ZIP lên đây
+    """)
     
-    with col1:
-        if st.button("📥 Download dataset từ Kaggle", type="primary", use_container_width=True):
-            with st.spinner("Đang tải dataset từ Kaggle (khoảng 2-3 phút)..."):
+    uploaded_zip = st.file_uploader("Chọn file ZIP dataset", type=['zip'])
+    
+    if uploaded_zip:
+        if st.button("📂 Giải nén và load dữ liệu", type="primary", use_container_width=True):
+            with st.spinner("Đang giải nén và xử lý dữ liệu..."):
                 try:
-                    import kagglehub
-                    path = kagglehub.dataset_download("quandang/vietnamese-foods")
-                    st.session_state.dataset_path = path
-                    st.success(f"✅ Đã tải dataset thành công!")
-                    st.write(f"Đường dẫn: {path}")
-                except Exception as e:
-                    st.error(f"Lỗi: {str(e)}")
-    
-    with col2:
-        if st.session_state.dataset_path:
-            if st.button("📂 Load và xử lý dữ liệu", type="primary", use_container_width=True):
-                with st.spinner("Đang load dữ liệu..."):
-                    try:
-                        # Tìm đúng đường dẫn chứa thư mục Images
-                        base_path = st.session_state.dataset_path
-                        images_path = None
-                        
-                        # Tìm thư mục Images
-                        for root, dirs, files in os.walk(base_path):
-                            if 'Images' in dirs:
-                                images_path = os.path.join(root, 'Images')
-                                break
-                            if 'Train' in dirs:
-                                images_path = root
-                                break
-                        
-                        if images_path is None:
-                            images_path = base_path
-                        
-                        BASE_DIRS = [images_path]
-                        
-                        # Load dataframes (giống code gốc)
-                        train_df = merge_datasets(BASE_DIRS, 'Train')
-                        valid_df = merge_datasets(BASE_DIRS, 'Validate')
-                        test_df = merge_datasets(BASE_DIRS, 'Test')
-                        
+                    # Giải nén
+                    temp_dir = tempfile.mkdtemp()
+                    zip_path = os.path.join(temp_dir, "dataset.zip")
+                    
+                    with open(zip_path, "wb") as f:
+                        f.write(uploaded_zip.getbuffer())
+                    
+                    with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+                        zip_ref.extractall(temp_dir)
+                    
+                    # Tìm thư mục Images
+                    images_path = None
+                    for root, dirs, files in os.walk(temp_dir):
+                        if 'Images' in dirs:
+                            images_path = os.path.join(root, 'Images')
+                            break
+                        if 'Train' in dirs:
+                            images_path = root
+                            break
+                    
+                    if images_path is None:
+                        images_path = temp_dir
+                    
+                    # Load dataframes
+                    train_df = create_dataframe(os.path.join(images_path, 'Train'))
+                    valid_df = create_dataframe(os.path.join(images_path, 'Validate'))
+                    test_df = create_dataframe(os.path.join(images_path, 'Test'))
+                    
+                    if len(train_df) == 0:
+                        st.error("❌ Không tìm thấy dữ liệu! Hãy chắc chắn file ZIP có cấu trúc đúng.")
+                    else:
                         st.write(f"📊 **Train:** {len(train_df)} | **Validate:** {len(valid_df)} | **Test:** {len(test_df)}")
                         
-                        # Hiển thị 5 ảnh mẫu (giống code gốc)
-                        fig, axes = plt.subplots(1, 5, figsize=(15, 4))
-                        for i in range(5):
+                        # Hiển thị 5 ảnh mẫu
+                        fig, axes = plt.subplots(1, min(5, len(train_df)), figsize=(15, 4))
+                        if len(train_df) == 1:
+                            axes = [axes]
+                        for i in range(min(5, len(train_df))):
                             idx = random.randint(0, len(train_df) - 1)
                             img_path = train_df.iloc[idx]['filepath']
                             label = train_df.iloc[idx]['label']
@@ -254,74 +242,36 @@ with tab1:
                         st.session_state.valid_loader = DataLoader(valid_dataset, batch_size=BATCH_SIZE, shuffle=False)
                         st.session_state.classes = train_dataset.classes
                         st.session_state.data_ready = True
+                        st.session_state.data_path = temp_dir
                         
                         st.success(f"✅ Load thành công! {len(st.session_state.classes)} classes")
                         st.write(f"**Classes:** {', '.join(st.session_state.classes[:10])}...")
                         
-                    except Exception as e:
-                        st.error(f"Lỗi: {str(e)}")
+                except Exception as e:
+                    st.error(f"Lỗi: {str(e)}")
 
-# ==================== TAB 2: BUILD & TRAIN ====================
+# ==================== TAB 2: TRAIN ====================
 with tab2:
     st.header("2. Xây dựng và Train CNN Model")
-    st.info("Model có cấu trúc GIỐNG HỆT code gốc TensorFlow của bạn")
     
-    # Hiển thị cấu trúc model
-    with st.expander("📋 Xem cấu trúc model chi tiết"):
-        st.code("""
-        VietnameseFoodCNN (
-          (conv1_1): Conv2d(3, 32, kernel_size=3, padding=same)
-          (bn1_1): BatchNorm2d(32)
-          (conv1_2): Conv2d(32, 32, kernel_size=3, padding=same)
-          (bn1_2): BatchNorm2d(32)
-          (pool1): MaxPool2d(kernel_size=2)
-          (dropout1): Dropout(p=0.25)
-          
-          (conv2_1): Conv2d(32, 64, kernel_size=3, padding=same)
-          (bn2_1): BatchNorm2d(64)
-          (conv2_2): Conv2d(64, 64, kernel_size=3, padding=same)
-          (bn2_2): BatchNorm2d(64)
-          (pool2): MaxPool2d(kernel_size=2)
-          (dropout2): Dropout(p=0.30)
-          
-          (conv3_1): Conv2d(64, 128, kernel_size=3, padding=same)
-          (bn3_1): BatchNorm2d(128)
-          (conv3_2): Conv2d(128, 128, kernel_size=3, padding=same)
-          (bn3_2): BatchNorm2d(128)
-          (pool3): MaxPool2d(kernel_size=2)
-          (dropout3): Dropout(p=0.35)
-          
-          (conv4_1): Conv2d(128, 256, kernel_size=3, padding=same)
-          (bn4_1): BatchNorm2d(256)
-          (pool4): MaxPool2d(kernel_size=2)
-          (dropout4): Dropout(p=0.40)
-          
-          (global_avg_pool): AdaptiveAvgPool2d(output_size=1)
-          (fc1): Linear(in_features=256, out_features=256)
-          (dropout5): Dropout(p=0.5)
-          (fc2): Linear(in_features=256, out_features=30)
-        )
-        """)
-    
-    if st.session_state.get('data_ready'):
-        if st.button("🚀 BẮT ĐẦU TRAINING (GIỐNG CODE GỐC)", type="primary", use_container_width=True):
+    if not st.session_state.get('data_ready'):
+        st.warning("⚠️ Vui lòng upload và load dữ liệu ở tab 'Upload & Load Data' trước!")
+    else:
+        st.success(f"✅ Dữ liệu đã sẵn sàng - {len(st.session_state.classes)} classes")
+        
+        if st.button("🚀 BẮT ĐẦU TRAINING", type="primary", use_container_width=True):
             progress_bar = st.progress(0)
             status_text = st.empty()
-            metric_text = st.empty()
             
             try:
                 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
                 num_classes = len(st.session_state.classes)
                 
-                # Khởi tạo model (giống cấu trúc code gốc)
                 model = VietnameseFoodCNN(num_classes=num_classes).to(device)
                 criterion = nn.CrossEntropyLoss()
                 optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
                 
-                # Lưu lịch sử training
                 history = {'accuracy': [], 'val_accuracy': [], 'loss': [], 'val_loss': []}
-                
-                status_text.text("Đang training...")
                 
                 for epoch in range(EPOCHS):
                     # Training
@@ -370,9 +320,8 @@ with tab2:
                     history['val_accuracy'].append(val_acc / 100)
                     history['val_loss'].append(val_loss)
                     
-                    # Update progress
                     progress_bar.progress((epoch + 1) / EPOCHS)
-                    metric_text.text(f"Epoch {epoch+1}/{EPOCHS} | Train Acc: {train_acc:.2f}% | Val Acc: {val_acc:.2f}%")
+                    status_text.text(f"Epoch {epoch+1}/{EPOCHS} | Train Acc: {train_acc:.2f}% | Val Acc: {val_acc:.2f}%")
                 
                 st.session_state.model = model
                 st.session_state.trained = True
@@ -381,16 +330,14 @@ with tab2:
                 progress_bar.progress(100)
                 status_text.text("✅ Training hoàn tất!")
                 
-                # Kết quả cuối cùng
                 col1, col2 = st.columns(2)
                 col1.metric("Training Accuracy", f"{history['accuracy'][-1]:.2%}")
                 col2.metric("Validation Accuracy", f"{history['val_accuracy'][-1]:.2%}")
                 
-                # Vẽ biểu đồ (giống code gốc)
+                # Vẽ biểu đồ
                 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4))
-                
-                ax1.plot(history['accuracy'], label='Train Accuracy', marker='o')
-                ax1.plot(history['val_accuracy'], label='Validation Accuracy', marker='o')
+                ax1.plot(history['accuracy'], label='Train', marker='o')
+                ax1.plot(history['val_accuracy'], label='Validation', marker='o')
                 ax1.set_title('Model Accuracy')
                 ax1.set_xlabel('Epoch')
                 ax1.set_ylabel('Accuracy')
@@ -407,38 +354,25 @@ with tab2:
                 
                 st.pyplot(fig)
                 
-                # Lưu model
-                model_path = os.path.join(tempfile.gettempdir(), 'vietnamese_food_cnn.pth')
-                torch.save(model.state_dict(), model_path)
-                
-                with open(model_path, 'rb') as f:
-                    st.download_button(
-                        label="💾 Tải model (PyTorch .pth)",
-                        data=f,
-                        file_name="vietnamese_food_cnn.pth",
-                        mime="application/octet-stream"
-                    )
-                
                 st.balloons()
-                st.success("🎉 Training thành công! Sang tab Predict để thử nghiệm.")
+                st.success("🎉 Training thành công!")
                 
             except Exception as e:
                 st.error(f"Lỗi: {str(e)}")
-    else:
-        st.warning("⚠️ Vui lòng load dữ liệu ở tab 'Download & Load Data' trước!")
 
 # ==================== TAB 3: PREDICT ====================
 with tab3:
     st.header("3. Dự đoán món ăn từ ảnh")
     
-    if st.session_state.trained and st.session_state.model is not None:
+    if not st.session_state.get('trained'):
+        st.warning("⚠️ Vui lòng train model ở tab 'Build & Train' trước!")
+    else:
         uploaded_file = st.file_uploader("Chọn ảnh món ăn", type=['jpg', 'jpeg', 'png', 'webp'])
         
         if uploaded_file:
             image = Image.open(uploaded_file)
             st.image(image, caption="Ảnh đã upload", width=250)
             
-            # Transform cho ảnh dự đoán (giống code gốc)
             predict_transform = transforms.Compose([
                 transforms.Resize(IMAGE_SIZE),
                 transforms.ToTensor(),
@@ -463,15 +397,13 @@ with tab3:
                     st.success(f"### 🎯 Kết quả: **{food_name}**")
                     st.info(f"📊 Độ tin cậy: **{confidence:.2%}**")
                     
-                    # Hiển thị top 5 dự đoán
                     st.write("### Top 5 dự đoán:")
-                    top5 = torch.topk(probabilities, 5)
-                    for i in range(5):
+                    top5 = torch.topk(probabilities, min(5, len(probabilities)))
+                    for i in range(top5.indices.size(0)):
                         idx = top5.indices[i].item()
                         prob = top5.values[i].item()
                         st.progress(prob, text=f"{st.session_state.classes[idx]}: {prob:.2%}")
-    else:
-        st.warning("⚠️ Vui lòng train model ở tab 'Build & Train' trước!")
 
 st.markdown("---")
-st.caption("🍜 Model CNN - Cấu trúc giống hệt code gốc TensorFlow, chuyển sang PyTorch để chạy ổn định trên Cloud")
+st.caption("🍜 CNN Model - Nhận diện món ăn Việt Nam | Upload dataset từ Kaggle")
+
