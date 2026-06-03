@@ -63,7 +63,6 @@ st.markdown("""
         border-radius: 0px;
     }
     
-    /* Button - white background, black text, black border */
     .stButton > button {
         background-color: #ffffff !important;
         color: #000000 !important;
@@ -108,11 +107,6 @@ st.markdown("""
         border-radius: 0px;
     }
     
-    hr {
-        border-color: #000000;
-        margin: 1rem 0;
-    }
-    
     .stCaption {
         color: #666666;
         font-family: 'Courier New', monospace;
@@ -121,6 +115,12 @@ st.markdown("""
     code {
         background-color: #f5f5f5;
         color: #000000;
+    }
+    
+    .version {
+        color: #666666;
+        font-size: 0.8rem;
+        margin-top: 1rem;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -131,8 +131,6 @@ st.markdown("""
     > Vietnam Food Recognition<span class="blinking-cursor">_</span>
 </h1>
 """, unsafe_allow_html=True)
-
-st.markdown("---")
 
 # Model path
 MODEL_PATH = "model.onnx"
@@ -154,7 +152,7 @@ input_shape = session.get_inputs()[0].shape
 img_size = f"{input_shape[1]}x{input_shape[2]}"
 
 st.markdown(f"""
-> version 1.0 2026 by Luong Ngoc Thuan Khanh Anh Doan Hung 
+> rule: support 30 classes | image size {img_size} | RGB format
 """)
 
 # Food data with Vietnamese descriptions
@@ -191,14 +189,12 @@ FOOD_DATA = {
     'Xoi xeo': 'Xôi xéo - Xôi nếp vàng ươm, đậu xanh, hành phi, ăn kèm ruốc, chả, hoặc đường'
 }
 
-# Instruction
-st.markdown("### instruction")
+# Instruction with > on each line
 st.markdown("""
-> > upload image (jpg, jpeg, png)
-> > click predict
-> > view result & confidence
+> upload image (jpg, jpeg, png)
+> click predict
+> view result & confidence
 """)
-st.markdown("---")
 
 # Layout
 col_left, col_right = st.columns([0.45, 0.55])
@@ -221,8 +217,6 @@ with col_left:
         img_array = np.array(image).astype(np.float32) / 255.0
         img_array = np.expand_dims(img_array, axis=0)
         
-        st.markdown("---")
-        
         if st.button("> predict"):
             input_name = session.get_inputs()[0].name
             predictions = session.run(None, {input_name: img_array})[0]
@@ -231,16 +225,13 @@ with col_left:
             confidence = float(predictions[0][idx])
             food_name = list(FOOD_DATA.keys())[idx]
             
-            st.markdown("---")
             st.markdown(f"### > {food_name}")
             st.caption(f"confidence: {confidence:.2%}")
             
-            st.markdown("---")
-            st.caption("description")
+            st.markdown("> description")
             st.write(FOOD_DATA[food_name])
             
-            st.markdown("---")
-            st.caption("top 5")
+            st.markdown("> top 5")
             top5_idx = np.argsort(predictions[0])[-5:][::-1]
             for i, idx in enumerate(top5_idx, 1):
                 prob = float(predictions[0][idx])
@@ -256,5 +247,7 @@ with col_right:
             with st.expander(f"{i+1:02d}. {food}"):
                 st.caption(desc)
 
-st.markdown("---")
-st.caption("cnn model | vietnamese food recognition")
+# Version footer
+st.markdown("""
+> version 1.0 2026 by Luong Ngoc Thuan Khanh Anh Doan Hung
+""")
