@@ -192,11 +192,11 @@ FOOD_DATA = {
 }
 
 # Instruction
-st.markdown("### > instruction")
+st.markdown("### instruction")
 st.markdown("""
-> 1. upload image (jpg, jpeg, png)
-> 2. click predict
-> 3. view result & confidence
+> > upload image (jpg, jpeg, png)
+> > click predict
+> > view result & confidence
 """)
 st.markdown("---")
 
