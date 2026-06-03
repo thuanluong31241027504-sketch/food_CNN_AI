@@ -1,66 +1,120 @@
 import streamlit as st
-import numpy as np
-import tensorflow as tf
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Conv2D, MaxPooling2D, Flatten, Dense, Dropout, BatchNormalization, GlobalAveragePooling2D, Input
-from tensorflow.keras.optimizers import Adam
-from tensorflow.keras.preprocessing.image import ImageDataGenerator
-import matplotlib.pyplot as plt
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from torchvision import transforms
 from PIL import Image
+import numpy as np
+import matplotlib.pyplot as plt
 import os
-import zipfile
 import tempfile
-import time
+from torch.utils.data import DataLoader, Dataset
+import zipfile
 
 # Cấu hình trang
-st.set_page_config(
-    page_title="Train CNN - Vietnamese Food", 
-    page_icon="🍜",
-    layout="wide"
-)
+st.set_page_config(page_title="Vietnamese Food CNN", page_icon="🍜", layout="wide")
 
-# Title
-st.title("🍜 Train CNN Model Trực Tiếp trên Streamlit")
+st.title("🍜 Vietnamese Food Recognition with CNN")
 st.markdown("---")
 
 # Khởi tạo session state
 if 'model' not in st.session_state:
     st.session_state.model = None
-if 'history' not in st.session_state:
-    st.session_state.history = None
 if 'classes' not in st.session_state:
     st.session_state.classes = None
 if 'data_ready' not in st.session_state:
     st.session_state.data_ready = False
+if 'trained' not in st.session_state:
+    st.session_state.trained = False
 
-# Sidebar - Parameters
-with st.sidebar:
-    st.header("⚙️ Cài đặt Model")
+# ==================== ĐỊNH NGHĨA MODEL CNN ====================
+# Đây chính là cấu trúc CNN bạn đã dùng trên Colab
+class VietnameseFoodCNN(nn.Module):
+    def __init__(self, num_classes=30):
+        super(VietnameseFoodCNN, self).__init__()
+        
+        # Block 1 (giống code gốc của bạn)
+        self.conv1 = nn.Sequential(
+            nn.Conv2d(3, 32, kernel_size=3, padding=1),
+            nn.BatchNorm2d(32),
+            nn.ReLU(),
+            nn.Conv2d(32, 32, kernel_size=3, padding=1),
+            nn.BatchNorm2d(32),
+            nn.ReLU(),
+            nn.MaxPool2d(2),
+            nn.Dropout(0.25)
+        )
+        
+        # Block 2
+        self.conv2 = nn.Sequential(
+            nn.Conv2d(32, 64, kernel_size=3, padding=1),
+            nn.BatchNorm2d(64),
+            nn.ReLU(),
+            nn.Conv2d(64, 64, kernel_size=3, padding=1),
+            nn.BatchNorm2d(64),
+            nn.ReLU(),
+            nn.MaxPool2d(2),
+            nn.Dropout(0.30)
+        )
+        
+        # Block 3
+        self.conv3 = nn.Sequential(
+            nn.Conv2d(64, 128, kernel_size=3, padding=1),
+            nn.BatchNorm2d(128),
+            nn.ReLU(),
+            nn.Conv2d(128, 128, kernel_size=3, padding=1),
+            nn.BatchNorm2d(128),
+            nn.ReLU(),
+            nn.MaxPool2d(2),
+            nn.Dropout(0.35)
+        )
+        
+        # Block 4
+        self.conv4 = nn.Sequential(
+            nn.Conv2d(128, 256, kernel_size=3, padding=1),
+            nn.BatchNorm2d(256),
+            nn.ReLU(),
+            nn.MaxPool2d(2),
+            nn.Dropout(0.40)
+        )
+        
+        # Head
+        self.global_avg_pool = nn.AdaptiveAvgPool2d(1)
+        self.fc1 = nn.Linear(256, 256)
+        self.dropout = nn.Dropout(0.5)
+        self.fc2 = nn.Linear(256, num_classes)
     
-    # Model parameters
-    st.subheader("🏗️ Kiến trúc CNN")
-    conv_layers = st.select_slider("Số Conv Layers", options=[1, 2, 3], value=2)
-    filters_start = st.selectbox("Số filters khởi đầu", [16, 32, 64], index=1)
-    dense_units = st.selectbox("Số neuron Dense layer", [64, 128, 256], index=1)
-    dropout_rate = st.slider("Dropout rate", 0.2, 0.7, 0.5, 0.1)
+    def forward(self, x):
+        x = self.conv1(x)
+        x = self.conv2(x)
+        x = self.conv3(x)
+        x = self.conv4(x)
+        x = self.global_avg_pool(x)
+        x = x.view(x.size(0), -1)
+        x = F.relu(self.fc1(x))
+        x = self.dropout(x)
+        x = self.fc2(x)
+        return x
+
+# ==================== PHẦN 1: CHUẨN BỊ DỮ LIỆU ====================
+with st.sidebar:
+    st.header("⚙️ Cài đặt")
     
     # Training parameters
     st.subheader("🎯 Training Parameters")
-    epochs = st.slider("Số epochs", 1, 15, 5)
+    epochs = st.slider("Số epochs", 1, 20, 5)
     batch_size = st.select_slider("Batch size", options=[8, 16, 32], value=16)
     learning_rate = st.number_input("Learning rate", 0.0001, 0.01, 0.001, format="%.4f")
     
     st.markdown("---")
-    st.info("💡 **Mẹo:** Bắt đầu với epochs=5 để test trước")
+    st.info("💡 **Mẹo:** Bắt đầu với epochs=3-5 để test")
 
 # Main content - 2 cột
 col1, col2 = st.columns([1, 1])
 
-# ============ CỘT 1: CHUẨN BỊ DỮ LIỆU ============
 with col1:
     st.header("📁 1. Chuẩn bị dữ liệu")
     
-    # Option 1: Dùng dữ liệu mẫu (tự tạo)
     use_sample = st.checkbox("✅ Dùng dữ liệu mẫu (khuyến nghị)", value=True)
     
     if use_sample:
@@ -68,26 +122,20 @@ with col1:
         
         if st.button("🔄 Tạo dữ liệu mẫu", type="primary", use_container_width=True):
             with st.spinner("Đang tạo dữ liệu mẫu..."):
-                # Tạo thư mục tạm
                 temp_dir = tempfile.mkdtemp()
                 
-                # Tên các classes
-                classes = ['Pho', 'Bun_Cha', 'Banh_Mi', 'Com_Tam', 'Banh_Xeo']
+                # 10 món ăn Việt Nam phổ biến
+                classes = ['Pho', 'Bun_Cha', 'Banh_Mi', 'Com_Tam', 'Banh_Xeo',
+                          'Goi_Cuon', 'Bun_Bo_Hue', 'Cao_Lau', 'Mi_Quang', 'Cha_Ca']
                 st.session_state.classes = classes
                 
-                # Tạo ảnh giả
                 from PIL import ImageDraw
                 
                 for class_name in classes:
-                    # Tạo thư mục Train
                     train_dir = os.path.join(temp_dir, 'Train', class_name)
                     os.makedirs(train_dir, exist_ok=True)
                     
-                    # Tạo thư mục Validation
-                    val_dir = os.path.join(temp_dir, 'Validation', class_name)
-                    os.makedirs(val_dir, exist_ok=True)
-                    
-                    # Tạo 30 ảnh train, 10 ảnh validation mỗi class
+                    # Tạo 30 ảnh train mỗi class
                     for i in range(30):
                         img = Image.new('RGB', (128, 128), color=(
                             np.random.randint(100, 255),
@@ -101,266 +149,161 @@ with col1:
                             np.random.randint(0, 255)
                         ))
                         img.save(os.path.join(train_dir, f'{class_name}_{i}.jpg'))
-                    
-                    for i in range(10):
-                        img = Image.new('RGB', (128, 128), color=(
-                            np.random.randint(100, 255),
-                            np.random.randint(100, 255),
-                            np.random.randint(100, 255)
-                        ))
-                        draw = ImageDraw.Draw(img)
-                        draw.ellipse([20, 20, 108, 108], fill=(
-                            np.random.randint(0, 255),
-                            np.random.randint(0, 255),
-                            np.random.randint(0, 255)
-                        ))
-                        img.save(os.path.join(val_dir, f'{class_name}_val_{i}.jpg'))
                 
                 st.session_state.data_path = temp_dir
                 st.session_state.data_ready = True
                 
                 st.success(f"✅ Đã tạo xong dữ liệu mẫu!")
-                st.write(f"📊 **{len(classes)} classes:** {', '.join(classes)}")
-                st.write(f"🖼️ **30 ảnh train + 10 ảnh validation** mỗi class")
-    
-    # Option 2: Upload dữ liệu của bạn
-    else:
-        st.warning("⚠️ Upload file ZIP có cấu trúc:")
-        st.code("""
-data.zip
-├── Train/
-│   ├── Pho/
-│   ├── BunCha/
-│   └── ...
-└── Validation/
-    ├── Pho/
-    ├── BunCha/
-    └── ...
-        """)
-        
-        uploaded_zip = st.file_uploader("Chọn file ZIP", type=['zip'])
-        
-        if uploaded_zip and st.button("📦 Giải nén dữ liệu", use_container_width=True):
-            with st.spinner("Đang giải nén..."):
-                temp_dir = tempfile.mkdtemp()
-                zip_path = os.path.join(temp_dir, "data.zip")
-                
-                with open(zip_path, "wb") as f:
-                    f.write(uploaded_zip.getbuffer())
-                
-                with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-                    zip_ref.extractall(temp_dir)
-                
-                # Tìm thư mục Train và Validation
-                train_path = None
-                val_path = None
-                
-                for root, dirs, files in os.walk(temp_dir):
-                    if 'Train' in dirs:
-                        train_path = os.path.join(root, 'Train')
-                    if 'Validation' in dirs or 'Validate' in dirs:
-                        val_path = os.path.join(root, 'Validation') if 'Validation' in dirs else os.path.join(root, 'Validate')
-                
-                if train_path and val_path:
-                    # Lấy danh sách classes
-                    classes = [d for d in os.listdir(train_path) if os.path.isdir(os.path.join(train_path, d))]
-                    st.session_state.classes = classes
-                    st.session_state.data_path = temp_dir
-                    st.session_state.data_ready = True
-                    st.success(f"✅ Dữ liệu đã sẵn sàng! {len(classes)} classes detected")
-                else:
-                    st.error("❌ Không tìm thấy thư mục Train/Validation!")
+                st.write(f"📊 **{len(classes)} classes:** {', '.join(classes[:5])}...")
+                st.write(f"🖼️ **30 ảnh train** mỗi class")
 
-# ============ CỘT 2: XÂY DỰNG VÀ TRAIN MODEL ============
 with col2:
     st.header("🏗️ 2. Xây dựng & Train Model")
     
     if not st.session_state.data_ready:
-        st.info("👈 Hãy tạo hoặc upload dữ liệu ở cột bên trái trước")
+        st.info("👈 Hãy tạo dữ liệu mẫu ở cột bên trái trước")
     else:
         st.success(f"✅ Dữ liệu đã sẵn sàng - {len(st.session_state.classes)} classes")
         
         if st.button("🚀 BẮT ĐẦU TRAINING", type="primary", use_container_width=True):
-            
-            # Progress tracking
             progress_bar = st.progress(0)
             status_text = st.empty()
             metric_text = st.empty()
             
             try:
-                # 1. Load dữ liệu
+                # 1. Load dữ liệu với PyTorch
                 status_text.text("📂 Đang load dữ liệu...")
                 
+                from torchvision import datasets, transforms
+                
+                transform = transforms.Compose([
+                    transforms.Resize((128, 128)),
+                    transforms.RandomHorizontalFlip(),
+                    transforms.RandomRotation(10),
+                    transforms.ToTensor(),
+                    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+                ])
+                
                 train_path = os.path.join(st.session_state.data_path, 'Train')
-                val_path = None
+                full_dataset = datasets.ImageFolder(train_path, transform=transform)
                 
-                # Tìm validation path
-                for root, dirs, files in os.walk(st.session_state.data_path):
-                    if 'Validation' in dirs:
-                        val_path = os.path.join(root, 'Validation')
-                        break
-                    elif 'Validate' in dirs:
-                        val_path = os.path.join(root, 'Validate')
-                        break
+                # Chia train/val 80-20
+                train_size = int(0.8 * len(full_dataset))
+                val_size = len(full_dataset) - train_size
+                train_dataset, val_dataset = torch.utils.data.random_split(full_dataset, [train_size, val_size])
                 
-                if val_path is None:
-                    # Nếu không có validation, dùng 20% từ train
-                    val_path = None
-                    st.info("Không tìm thấy validation folder, sẽ tự động tách 20% từ train")
+                train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+                val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
                 
-                # Data augmentation
-                train_datagen = ImageDataGenerator(
-                    rescale=1./255,
-                    rotation_range=20,
-                    width_shift_range=0.1,
-                    height_shift_range=0.1,
-                    horizontal_flip=True,
-                    validation_split=0.2 if val_path is None else 0.0
-                )
+                num_classes = len(full_dataset.classes)
+                st.session_state.classes = full_dataset.classes
                 
-                if val_path:
-                    val_datagen = ImageDataGenerator(rescale=1./255)
-                    
-                    train_generator = train_datagen.flow_from_directory(
-                        train_path,
-                        target_size=(128, 128),
-                        batch_size=batch_size,
-                        class_mode='categorical',
-                        shuffle=True
-                    )
-                    
-                    val_generator = val_datagen.flow_from_directory(
-                        val_path,
-                        target_size=(128, 128),
-                        batch_size=batch_size,
-                        class_mode='categorical',
-                        shuffle=False
-                    )
-                else:
-                    train_generator = train_datagen.flow_from_directory(
-                        train_path,
-                        target_size=(128, 128),
-                        batch_size=batch_size,
-                        class_mode='categorical',
-                        subset='training',
-                        shuffle=True
-                    )
-                    
-                    val_generator = train_datagen.flow_from_directory(
-                        train_path,
-                        target_size=(128, 128),
-                        batch_size=batch_size,
-                        class_mode='categorical',
-                        subset='validation',
-                        shuffle=False
-                    )
+                status_text.text(f"✅ Dữ liệu loaded: {train_size} train, {val_size} val")
                 
-                num_classes = len(train_generator.class_indices)
-                st.session_state.classes = list(train_generator.class_indices.keys())
-                
-                status_text.text(f"✅ Dữ liệu loaded: {train_generator.samples} train, {val_generator.samples} val")
-                
-                # 2. Xây dựng model
+                # 2. Khởi tạo model
                 status_text.text("🏗️ Đang xây dựng CNN model...")
                 
-                model = Sequential()
-                model.add(Input(shape=(128, 128, 3)))
-                
-                # Conv layers
-                filters = filters_start
-                for i in range(conv_layers):
-                    model.add(Conv2D(filters, (3, 3), activation='relu', padding='same'))
-                    model.add(BatchNormalization())
-                    model.add(Conv2D(filters, (3, 3), activation='relu', padding='same'))
-                    model.add(BatchNormalization())
-                    model.add(MaxPooling2D(2, 2))
-                    model.add(Dropout(min(0.25 + i*0.05, 0.5)))
-                    filters *= 2
-                
-                # Head
-                model.add(GlobalAveragePooling2D())
-                model.add(Dense(dense_units, activation='relu'))
-                model.add(Dropout(dropout_rate))
-                model.add(Dense(num_classes, activation='softmax'))
-                
-                # Compile
-                model.compile(
-                    optimizer=Adam(learning_rate=learning_rate),
-                    loss='categorical_crossentropy',
-                    metrics=['accuracy']
-                )
-                
-                # Hiển thị model summary
-                with st.expander("📋 Xem cấu trúc model"):
-                    summary_str = []
-                    model.summary(print_fn=lambda x: summary_str.append(x))
-                    st.code('\n'.join(summary_str))
+                device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+                model = VietnameseFoodCNN(num_classes=num_classes).to(device)
+                criterion = nn.CrossEntropyLoss()
+                optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
                 
                 # 3. Training
                 status_text.text("🎯 Đang training model...")
                 
-                # Callback cập nhật progress
-                class MyCallback(tf.keras.callbacks.Callback):
-                    def on_epoch_end(self, epoch, logs=None):
-                        progress = (epoch + 1) / epochs
-                        progress_bar.progress(progress)
-                        metric_text.text(f"Epoch {epoch+1}/{epochs} - Acc: {logs['accuracy']:.4f} - Val Acc: {logs['val_accuracy']:.4f}")
+                train_losses = []
+                val_accs = []
                 
-                history = model.fit(
-                    train_generator,
-                    epochs=epochs,
-                    validation_data=val_generator,
-                    callbacks=[MyCallback()],
-                    verbose=0
-                )
+                for epoch in range(epochs):
+                    # Training
+                    model.train()
+                    running_loss = 0.0
+                    correct = 0
+                    total = 0
+                    
+                    for images, labels in train_loader:
+                        images, labels = images.to(device), labels.to(device)
+                        
+                        optimizer.zero_grad()
+                        outputs = model(images)
+                        loss = criterion(outputs, labels)
+                        loss.backward()
+                        optimizer.step()
+                        
+                        running_loss += loss.item()
+                        _, predicted = torch.max(outputs.data, 1)
+                        total += labels.size(0)
+                        correct += (predicted == labels).sum().item()
+                    
+                    train_acc = 100 * correct / total
+                    avg_loss = running_loss / len(train_loader)
+                    train_losses.append(avg_loss)
+                    
+                    # Validation
+                    model.eval()
+                    val_correct = 0
+                    val_total = 0
+                    
+                    with torch.no_grad():
+                        for images, labels in val_loader:
+                            images, labels = images.to(device), labels.to(device)
+                            outputs = model(images)
+                            _, predicted = torch.max(outputs.data, 1)
+                            val_total += labels.size(0)
+                            val_correct += (predicted == labels).sum().item()
+                    
+                    val_acc = 100 * val_correct / val_total
+                    val_accs.append(val_acc)
+                    
+                    # Update progress
+                    progress_bar.progress((epoch + 1) / epochs)
+                    metric_text.text(f"Epoch {epoch+1}/{epochs} - Train Acc: {train_acc:.2f}% - Val Acc: {val_acc:.2f}%")
                 
                 progress_bar.progress(100)
                 status_text.text("✅ Training hoàn tất!")
                 
                 # Lưu model
                 st.session_state.model = model
-                st.session_state.history = history
+                st.session_state.trained = True
                 
                 # Hiển thị kết quả
-                final_acc = history.history['accuracy'][-1]
-                final_val_acc = history.history['val_accuracy'][-1]
+                final_train_acc = train_accs[-1] if train_accs else 0
+                final_val_acc = val_accs[-1] if val_accs else 0
                 
                 col_a, col_b = st.columns(2)
                 with col_a:
-                    st.metric("Training Accuracy", f"{final_acc:.2%}")
+                    st.metric("Training Accuracy", f"{final_train_acc:.2f}%")
                 with col_b:
-                    st.metric("Validation Accuracy", f"{final_val_acc:.2%}")
+                    st.metric("Validation Accuracy", f"{final_val_acc:.2f}%")
                 
                 # Vẽ biểu đồ
                 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4))
                 
-                ax1.plot(history.history['accuracy'], label='Train', marker='o')
-                ax1.plot(history.history['val_accuracy'], label='Validation', marker='o')
-                ax1.set_title('Model Accuracy')
+                ax1.plot(train_losses, label='Train Loss', marker='o')
+                ax1.set_title('Training Loss')
                 ax1.set_xlabel('Epoch')
-                ax1.set_ylabel('Accuracy')
+                ax1.set_ylabel('Loss')
                 ax1.legend()
                 ax1.grid(True)
                 
-                ax2.plot(history.history['loss'], label='Train', marker='o')
-                ax2.plot(history.history['val_loss'], label='Validation', marker='o')
-                ax2.set_title('Model Loss')
+                ax2.plot(val_accs, label='Validation Accuracy', marker='o', color='green')
+                ax2.set_title('Validation Accuracy')
                 ax2.set_xlabel('Epoch')
-                ax2.set_ylabel('Loss')
+                ax2.set_ylabel('Accuracy (%)')
                 ax2.legend()
                 ax2.grid(True)
                 
                 st.pyplot(fig)
                 
-                # Lưu model
-                model_path = os.path.join(tempfile.gettempdir(), 'food_model.h5')
-                model.save(model_path)
+                # Lưu model để download
+                model_path = os.path.join(tempfile.gettempdir(), 'food_model.pth')
+                torch.save(model.state_dict(), model_path)
                 
                 with open(model_path, 'rb') as f:
                     st.download_button(
-                        label="💾 Tải model về máy (model.h5)",
+                        label="💾 Tải model về máy (PyTorch .pth)",
                         data=f,
-                        file_name="vietnamese_food_model.h5",
+                        file_name="vietnamese_food_cnn.pth",
                         mime="application/octet-stream"
                     )
                 
@@ -369,10 +312,10 @@ with col2:
                 
             except Exception as e:
                 st.error(f"❌ Lỗi: {str(e)}")
-                st.info("💡 Thử giảm epochs xuống 3-5 hoặc batch_size xuống 8 để test trước")
+                st.info("💡 Thử giảm epochs xuống 2-3 hoặc batch_size xuống 8 để test")
 
-# ============ PHẦN 3: DỰ ĐOÁN ============
-if st.session_state.model is not None:
+# ==================== PHẦN 3: DỰ ĐOÁN ====================
+if st.session_state.trained and st.session_state.model is not None:
     st.markdown("---")
     st.header("🔮 3. Dự đoán với model vừa train")
     
@@ -383,29 +326,42 @@ if st.session_state.model is not None:
         
         if uploaded_file:
             image = Image.open(uploaded_file)
-            st.image(image, caption="Ảnh của bạn", width=300)
+            st.image(image, caption="Ảnh của bạn", width=250)
     
     with col2:
         if uploaded_file and st.button("🔍 Dự đoán", type="primary", use_container_width=True):
             with st.spinner("Đang xử lý..."):
+                device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+                model = st.session_state.model.to(device)
+                model.eval()
+                
                 # Preprocess
-                img = image.resize((128, 128))
-                img_array = np.array(img) / 255.0
-                img_array = np.expand_dims(img_array, axis=0)
+                transform = transforms.Compose([
+                    transforms.Resize((128, 128)),
+                    transforms.ToTensor(),
+                    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+                ])
+                
+                img = transform(image).unsqueeze(0).to(device)
                 
                 # Predict
-                predictions = st.session_state.model.predict(img_array)
-                predicted_idx = np.argmax(predictions[0])
-                confidence = np.max(predictions[0])
+                with torch.no_grad():
+                    outputs = model(img)
+                    probabilities = torch.nn.functional.softmax(outputs[0], dim=0)
+                    predicted_idx = torch.argmax(probabilities).item()
+                    confidence = probabilities[predicted_idx].item()
                 
-                st.success(f"### 🎯 Kết quả: **{st.session_state.classes[predicted_idx]}**")
+                predicted_food = st.session_state.classes[predicted_idx]
+                
+                st.success(f"### 🎯 Kết quả: **{predicted_food}**")
                 st.info(f"### 📊 Độ tin cậy: **{confidence:.2%}**")
                 
-                # Hiển thị top 3
-                st.write("### Top 3 dự đoán:")
-                top_3_idx = np.argsort(predictions[0])[-3:][::-1]
-                for idx in top_3_idx:
-                    st.progress(predictions[0][idx], text=f"{st.session_state.classes[idx]}: {predictions[0][idx]:.2%}")
+                # Hiển thị top 5
+                st.write("### 🏆 Top 5 dự đoán:")
+                top5_idx = torch.argsort(probabilities, descending=True)[:5]
+                for idx in top5_idx:
+                    prob = probabilities[idx].item()
+                    st.progress(prob, text=f"{st.session_state.classes[idx]}: {prob:.2%}")
 
 st.markdown("---")
 st.caption("💡 **Hướng dẫn:** Chọn 'Dùng dữ liệu mẫu' → Tạo dữ liệu mẫu → Bắt đầu training → Dự đoán thử")
